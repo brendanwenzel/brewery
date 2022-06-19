@@ -8,5 +8,5 @@ npx hardhat node
 
 ```shell
 cd scripts
-npx hardhat fullbuild.js --network localhost
+npx hardhat run fullbuild.js --network localhost
 ```
