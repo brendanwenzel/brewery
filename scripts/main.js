@@ -3,11 +3,13 @@ const ethers = hre.ethers;
 require("dotenv").config();
 const chalk = require("chalk");
 const abiDecoder = require('abi-decoder');
+const { MongoClient, CURSOR_FLAGS } = require('mongodb');
 
 const wssProvider = new ethers.providers.WebSocketProvider(process.env.RPC_URL_WSS);
+const provider = new ethers.providers.JsonRpcProvider(process.env.RPC_URL);
 const rpcProvider = new ethers.providers.JsonRpcProvider("http://127.0.0.1:8545");
-
-const { MongoClient, CURSOR_FLAGS } = require('mongodb');
+const searcherWallet = new ethers.Wallet( process.env.PRIVATE_KEY_LIVE, wssProvider );
+const signerKey = searcherWallet.connect(provider);
 
 const logWarn = (...args) => { console.log(chalk.hex("#FFA500")(...args)); };
 const logSuccess = (...args) => { console.log(chalk.green(...args)); };
@@ -34,8 +36,6 @@ const IPancakeswapV2RouterABI = require("/home/liquidity/src/abi/IPancakswapV2Ro
 const ILiquidity = require("./abi/ILiquidityPair.json");
 const hreProvider = hre.network.provider;
 
-abiDecoder.addABI(IPancakeswapV2RouterABI);
-
 const TOKENS = {
   WFTM: "0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83",
   USDC: "0x04068DA6C83AFCFA0e13ba15A6696662335D5B75",
@@ -45,6 +45,8 @@ const CONTRACTS = {
   SPOOKY: "0xF491e7B69E4244ad4002BC14e878a34207E38c29",
   BOOBREWCONTRACT: "0x3B3fdC40582a957206Aed119842F2313DE9eE21b"
 }
+
+// Private Keys from Hardhat
 const PRIVATEKEY = [
   "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
   "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
@@ -87,6 +89,7 @@ const match = (a, b, caseIncensitive = true) => {
 };
 
 const parseUniv2RouterTx = (txData) => {
+  abiDecoder.addABI(IPancakeswapV2RouterABI);
   let data = null;
   try {
     data = abiDecoder.decodeMethod(txData);
@@ -142,6 +145,25 @@ const parseUniv2RouterTx = (txData) => {
   };
 };
 
+const parseBooBrewTx = (txData) => {
+  abiDecoder.addABI(IBooBrew);
+  let data = null;
+  try {
+    data = abiDecoder.decodeMethod(txData);
+  } catch (e) {
+    return null;
+  }
+
+  if (data.name !== "convertMultiple") { return null; }
+
+    const [token0, token1, LPamounts] = data.params.map((x) => x.value);
+    return {
+      token0,
+      token1,
+      LPamounts
+    };
+};
+
 const sortTokens = (tokenA, tokenB) => {
   if (ethers.BigNumber.from(tokenA).lt(ethers.BigNumber.from(tokenB))) {
     return [tokenA, tokenB];
@@ -162,23 +184,28 @@ const getUniv2PairAddress = (tokenA, tokenB) => {
   return address;
 };
 
-const forkNetwork = async (txHash, blockNumber, lowestGasPrice) => {
+const clearRewards = async (tx) => {
+  const routerDataDecoded = parseBooBrewTx(tx.data);
+  if (routerDataDecoded === null) { return; }
+  const { token0, token1, LPamounts } = routerDataDecoded;
+  const tokenAmount = token0.length;
+
+  for (var i = 0; i < tokenAmount; i++) {
+    const pairAddress = getUniv2PairAddress(token0[i], token1[i]);
+    const queryPairData = { pair: pairAddress };
+    const resetRewards = { $set: { reward: 0 } };
+    await collect.updateOne(queryPairData, resetRewards);
+  }
+
+    return;
+
+};
+
+const forkNetwork = async (tx, blockNumber) => {
 
   const blockToFork = blockNumber; 
   const lastNumber = (blockNumber % 10);
   const privateKeyHH = PRIVATEKEY[lastNumber];
-
-  const [tx, txRecp] = await Promise.all([
-    wssProvider.getTransaction(txHash),
-    await wssProvider.waitForTransaction(txHash),
-  ]);
-
-  if (tx === null) { return; } // Confirm TX is Valid
-  if (!match(tx.to, CONTRACTS.SPOOKY)) { return; } // SpookySwap Router
-  if (txRecp === null) { return; } // Confirm TX is Complete
-  
-  const searcherWallet = new ethers.Wallet( process.env.PRIVATE_KEY_LIVE, wssProvider );
-  const signerKey = searcherWallet.connect(wssProvider);
 
   const routerDataDecoded = parseUniv2RouterTx(tx.data);
   if (routerDataDecoded === null) { return; }
@@ -218,8 +245,6 @@ if (findAddress) {
 
 if (lpBalance == 0) { return; }
 
-  const estGasPrice = await wssProvider.getGasPrice();
-
   const forkedWallet = new ethers.Wallet(
     privateKeyHH,
     rpcProvider
@@ -253,18 +278,11 @@ await hreProvider.request({
   ],
 });
   
-// Target Pair (TP) for Reward Calculation
-const rewardGasPrice = () => {
-if (lowestGasPrice.gt(estGasPrice)) {
-  return estGasPrice;
-} else {
-  return lowestGasPrice;
-}
-};
-const txGasPrice = rewardGasPrice();
-const gasPrice = ethers.utils.hexlify(txGasPrice);
+// Gas Prices
+const estGasPrice = await wssProvider.getGasPrice();
+const gasPrice = ethers.utils.hexlify(estGasPrice);
 const gasLimit = ethers.utils.hexlify(3000000);
-const gasCost = ethers.BigNumber.from(txGasPrice.mul(1500000));
+const gasCost = ethers.BigNumber.from(estGasPrice.mul(1500000));
 
 const determineReward = async () => {
   const targetPair = await collect.findOne( { pair: pairAddress } );
@@ -409,68 +427,65 @@ const booBrewContractLive = new ethers.Contract(
   const ftmOut = calcAmountOut[1];
   const profitCalculation = ftmOut - gasCost.mul(2);  
   if (profitCalculation < 0) { return; }
+  const profitLog = ethers.utils.formatUnits(profitCalculation);
   logDebug("==========================================");
-  logDebug("Possible Profit:", profitCalculation);
-  logDebug("==========================================");
-
- const claim = await booBrewContractLive.convertMultiple([pairAtoken0, pairBtoken0, pairCtoken0, pairDtoken0, pairEtoken0, pairFtoken0], [pairAtoken1, pairBtoken1, pairCtoken1, pairDtoken1, pairEtoken1, pairFtoken1], [pairBalanceA, pairBalanceB, pairBalanceC, pairBalanceD, pairBalanceE, pairBalanceF], {gasPrice: gasPrice, gasLimit: gasLimit});
-// const claim = await booBrewContractLive.convertMultiple([pairAtoken0, pairBtoken0], [pairAtoken1, pairBtoken1], [pairAbalance, pairBbalance], {gasPrice: gasPrice, gasLimit: gasLimit});  
-const claimRect = await claim.wait();
+  logDebug("Possible Profit:", profitLog);
+  logTrace("Submitting Claim...");
+  const claim = await booBrewContractLive.convertMultiple([pairAtoken0, pairBtoken0, pairCtoken0, pairDtoken0, pairEtoken0, pairFtoken0], [pairAtoken1, pairBtoken1, pairCtoken1, pairDtoken1, pairEtoken1, pairFtoken1], [pairBalanceA, pairBalanceB, pairBalanceC, pairBalanceD, pairBalanceE, pairBalanceF], {gasPrice: gasPrice, gasLimit: gasLimit});
+  logTrace("Claim Submitted");
+  const claimRect = await claim.wait();
   logInfo(`Boo Claimed!`)
   logInfo(`Transaction: ${claimRect.transactionHash}`);
 };
   try {
     const claimReward = await testClaimReward();
-    } catch(e) {}
+    } catch(e) { }
 
   // process.exit(1);
   return;
 
 };
 
-const middleMan = async (blockNumber) => {
-
+const processBlock = async (blockNumber) => {
+  // Pull Transactions from Latest Block
   const blockData = await wssProvider.getBlockWithTransactions(blockNumber);
   const transactions = blockData.transactions;
   const txAmount = transactions.length;
-  const lastTx = await transactions[txAmount - 1];
-  const lowestGasPrice = lastTx.gasPrice;
-  // const transaction1 = transactions[0];
-  // logDebug(JSON.stringify(transaction1));
-  // process.exit(1);
-  for (var i = 0; i < txAmount; i++) {
 
+  for (var i = 0; i < txAmount; i++) {
     const processTX = transactions[i];
     const txHash = processTX.hash;
-    const sendtoForkNetwork = forkNetwork(
-      txHash, 
-      blockNumber,
-      lowestGasPrice
-    );
 
+  // Process TX and Get Reciept
+  const [tx, txRecp] = await Promise.all([
+    wssProvider.getTransaction(txHash),
+    await wssProvider.waitForTransaction(txHash),
+  ]);
+  if (tx === null) { return; } // Confirm TX is Valid
+  if (txRecp === null) { return; } // Confirm TX is Complete
+
+  // Clear Boo Rewards When Someone Else Claims Them
+  if (match(tx.to, CONTRACTS.BOOBREWCONTRACT)) { 
+    clearRewards(tx);
+   }
+
+  // Update Rewards for Each Traded Liquidity Pair
+  if (match(tx.to, CONTRACTS.SPOOKY)) {
+    try {
+      forkNetwork( tx, blockNumber );
+      } catch(e) {} 
+    }
   }
-
 };
+
 
 const main = async () => {
 
-  const origLog = console.log;
-  console.log = function (obj, ...placeholders) {
-    if (typeof obj === "string")
-      placeholders.unshift(obj);
-    else {
- 
-      placeholders.unshift(obj);
-      placeholders.unshift("[" + new Date().toISOString() + "] %j");
-    }
+  logInfo(`Listening for New Blocks...\n`);
 
-    origLog.apply(this, placeholders);
-  };
-
-  logInfo(`Listening to mempool...\n`);
-
+  // Pull New Block
   wssProvider.on("block", (blockNumber) =>
-  middleMan(blockNumber).catch((e) => {
+  processBlock(blockNumber).catch((e) => {
     logFatal(`Block = ${blockNumber} error ${JSON.stringify(e)}`);
     })
   );
