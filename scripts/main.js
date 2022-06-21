@@ -287,6 +287,228 @@ logSuccess(`New Pair Added: ${pairAddress}`);
 
 };
 
+const rewardClaim3 = async (blockNumber) => {
+
+  // Choose a random Hardhat wallet
+  function getRandomInt(max) {
+    return Math.floor(Math.random() * max);
+  }
+  const randomWallet = getRandomInt(50);
+  const privateKeyHH = PRIVATEKEY[randomWallet];
+
+  const forkedWallet = new ethers.Wallet(
+    privateKeyHH,
+    rpcProvider
+  );
+  const forkedKey = forkedWallet.connect(rpcProvider);
+
+  const booBrewContract = new ethers.Contract(
+    CONTRACTS.BOOBREWCONTRACT,
+    IBooBrew,
+    forkedWallet
+  );
+
+  const tokenContract = new ethers.Contract(
+    TOKENS.BOO,
+    [
+        'function balanceOf(address account) public view returns (uint256)',
+    ],
+    forkedKey
+);
+
+// Gas Price Setup
+const estGasPrice = await wssProvider.getGasPrice();
+const gasPrice = ethers.utils.hexlify(estGasPrice);
+const gasLimit = ethers.utils.hexlify(2000000);
+
+const determineReward = async () => {
+  const topThreeRewards = collect.find({ reward: { $ne:  "0" }}).sort({ reward: -1 }).limit(3);
+  const topThree = await topThreeRewards.toArray();
+  const pairAaddress = topThree[0].pair;
+  const pairAtoken0 = topThree[0].token0;
+  const pairAtoken1 = topThree[0].token1;
+  const pairAbalance = topThree[0].balance;
+  const pairBaddress = topThree[1].pair;
+  const pairBtoken0 = topThree[1].token0;
+  const pairBtoken1 = topThree[1].token1;
+  const pairBbalance = topThree[1].balance;
+  const pairCaddress = topThree[2].pair;
+  const pairCtoken0 = topThree[2].token0;
+  const pairCtoken1 = topThree[2].token1;
+  const pairCbalance = topThree[2].balance;
+
+  // Filter Previous Claims Within a 60 Block Window
+  const blockSpace = blockNumber - 60;
+  const queryAddress = await claimsDB.findOne({pair: pairAaddress, block: {$gt: blockSpace}});
+  if (queryAddress) { return; }
+  const queryAddressB = await claimsDB.findOne({pair: pairBaddress, block: {$gt: blockSpace}});
+  if (queryAddressB) { return; }
+  const queryAddressC = await claimsDB.findOne({pair: pairCaddress, block: {$gt: blockSpace}});
+  if (queryAddressC) { return; }
+
+  const calcTargetRewards = await booBrewContract.convertMultiple([pairAtoken0, pairBtoken0, pairCtoken0], [pairAtoken1, pairBtoken1, pairCtoken1], [pairAbalance, pairBbalance, pairCbalance], {gasPrice: gasPrice, gasLimit: gasLimit});
+  const callTargetResult = await calcTargetRewards.wait();
+  const gasUsed = callTargetResult.gasUsed; // Close Est. of Gas Used
+  const booTokenBalance = await tokenContract.balanceOf(forkedWallet.address);
+  const gasCost = ethers.BigNumber.from(estGasPrice.mul(gasUsed));
+
+  // Find Value of BOO in FTM
+  const routerContractLive = new ethers.Contract(
+    CONTRACTS.SPOOKY,
+    IPancakeswapV2RouterABI,
+    searcherWallet
+  );
+
+  const booFTMPath = [TOKENS.BOO, TOKENS.WFTM];
+  const calcAmountOut = await routerContractLive.getAmountsOut(booTokenBalance, booFTMPath);
+  const ftmOut = calcAmountOut[1];
+
+
+  const profitCalculation = ftmOut - gasCost.add(gasCost.div(5));
+  const actualProfit = ftmOut - gasCost;
+
+  if (profitCalculation > 0) { 
+  logDebug("==========================================");
+  logDebug("Profit in FTM:", actualProfit);
+
+  const newClaimA = { pair: pairAaddress, block: blockNumber };
+  const addClaimA = await claimsDB.insertOne( newClaimA );  
+  const newClaimB = { pair: pairBaddress, block: blockNumber };
+  const addClaimB = await claimsDB.insertOne( newClaimB );  
+  const newClaimC = { pair: pairCaddress, block: blockNumber };
+  const addClaimC = await claimsDB.insertOne( newClaimC );
+
+  const booBrewContractLive = new ethers.Contract(
+    CONTRACTS.BOOBREWCONTRACT,
+    IBooBrew,
+    searcherWallet
+  );
+
+  logTrace("Submitting Claim...");
+  const claimBooReward = await booBrewContractLive.convertMultiple([pairAtoken0, pairBtoken0, pairCtoken0], [pairAtoken1, pairBtoken1, pairCtoken1], [pairAbalance, pairBbalance, pairCbalance], {gasPrice: gasPrice, gasLimit: gasLimit});
+  logTrace("Top Three Claim Submitted");
+  const claimRect = await claimBooReward.wait();
+  logInfo(`Boo Claimed!`)
+  logInfo(`Transaction: https://ftmscan.com/tx/${claimRect.transactionHash}`);
+  }
+  return;
+};
+
+  try {
+    await determineReward();
+  } catch(e) {}
+  return;
+};
+
+const rewardClaim2 = async (blockNumber) => {
+
+  // Choose a random Hardhat wallet
+  function getRandomInt(max) {
+    return Math.floor(Math.random() * max);
+  }
+  const randomWallet = getRandomInt(50);
+  const privateKeyHH = PRIVATEKEY[randomWallet];
+
+  const forkedWallet = new ethers.Wallet(
+    privateKeyHH,
+    rpcProvider
+  );
+  const forkedKey = forkedWallet.connect(rpcProvider);
+
+  const booBrewContract = new ethers.Contract(
+    CONTRACTS.BOOBREWCONTRACT,
+    IBooBrew,
+    forkedWallet
+  );
+
+  const tokenContract = new ethers.Contract(
+    TOKENS.BOO,
+    [
+        'function balanceOf(address account) public view returns (uint256)',
+    ],
+    forkedKey
+);
+
+// Gas Price Setup
+const estGasPrice = await wssProvider.getGasPrice();
+const gasPrice = ethers.utils.hexlify(estGasPrice);
+const gasLimit = ethers.utils.hexlify(2000000);
+
+const determineReward = async () => {
+  const topTwoRewards = collect.find({ reward: { $ne:  "0" }}).sort({ reward: -1 }).limit(2);
+  const topTwo = await topTwoRewards.toArray();
+  const pairAaddress = topTwo[0].pair;
+  const pairAtoken0 = topTwo[0].token0;
+  const pairAtoken1 = topTwo[0].token1;
+  const pairAbalance = topTwo[0].balance;
+  const pairBaddress = topTwo[1].pair;
+  const pairBtoken0 = topTwo[1].token0;
+  const pairBtoken1 = topTwo[1].token1;
+  const pairBbalance = topTwo[1].balance;
+
+  // Filter Previous Claims Within a 60 Block Window
+  const blockSpace = blockNumber - 60;
+  const queryAddress = await claimsDB.findOne({pair: pairAaddress, block: {$gt: blockSpace}});
+  if (queryAddress) { return; }
+  const queryAddressB = await claimsDB.findOne({pair: pairBaddress, block: {$gt: blockSpace}});
+  if (queryAddressB) { return; }
+
+  const calcTargetRewards = await booBrewContract.convertMultiple([pairAtoken0, pairBtoken0], [pairAtoken1, pairBtoken1], [pairAbalance, pairBbalance], {gasPrice: gasPrice, gasLimit: gasLimit});
+  const callTargetResult = await calcTargetRewards.wait();
+  const gasUsed = callTargetResult.gasUsed; // Close Est. of Gas Used
+  const booTokenBalance = await tokenContract.balanceOf(forkedWallet.address);
+  const gasCost = ethers.BigNumber.from(estGasPrice.mul(gasUsed));
+
+  // Find Value of BOO in FTM
+  const routerContractLive = new ethers.Contract(
+    CONTRACTS.SPOOKY,
+    IPancakeswapV2RouterABI,
+    searcherWallet
+  );
+
+  const booFTMPath = [TOKENS.BOO, TOKENS.WFTM];
+  const calcAmountOut = await routerContractLive.getAmountsOut(booTokenBalance, booFTMPath);
+  const ftmOut = calcAmountOut[1];
+
+
+  const profitCalculation = ftmOut - gasCost.add(gasCost.div(3));
+  const actualProfit = ftmOut - gasCost;
+
+  if (profitCalculation > 0) { 
+  logDebug("==========================================");
+  logDebug("Profit in FTM:", actualProfit);
+
+  const newClaimA = { pair: pairAaddress, block: blockNumber };
+  const addClaimA = await claimsDB.insertOne( newClaimA );  
+  const newClaimB = { pair: pairBaddress, block: blockNumber };
+  const addClaimB = await claimsDB.insertOne( newClaimB );
+
+  const booBrewContractLive = new ethers.Contract(
+    CONTRACTS.BOOBREWCONTRACT,
+    IBooBrew,
+    searcherWallet
+  );
+
+  // const transactionPendingCount = await wssProvider.getTransactionCount(searcherWallet.address, "pending");
+  // const transactionCount = await wssProvider.getTransactionCount(searcherWallet.address);
+  //  if (transactionCount !== transactionPendingCount) { logError("Filtered"); return; }
+
+  logTrace("Submitting Claim...");
+  const claimBooReward = await booBrewContractLive.convertMultiple([pairAtoken0, pairBtoken0], [pairAtoken1, pairBtoken1], [pairAbalance, pairBbalance], {gasPrice: gasPrice, gasLimit: gasLimit});
+  logTrace("Top Two Claim Submitted");
+  const claimRect = await claimBooReward.wait();
+  logInfo(`Boo Claimed!`)
+  logInfo(`Transaction: https://ftmscan.com/tx/${claimRect.transactionHash}`);
+  }
+  return;
+};
+
+  try {
+    await determineReward();
+  } catch(e) {}
+  return;
+};
+
 const rewardClaim1 = async (pairAddress, blockNumber) => {
 
   // Filter Previous Claims Within a 60 Block Window
@@ -334,7 +556,11 @@ const determineReward = async () => {
   const callTargetResult = await calcTargetRewards.wait();
   const gasUsed = callTargetResult.gasUsed; // Close Est. of Gas Used
   const booTokenBalance = await tokenContract.balanceOf(forkedWallet.address);
+  const booReward = parseInt(booTokenBalance);
   const gasCost = ethers.BigNumber.from(estGasPrice.mul(gasUsed));
+  const pairQuery = { pair: pairAddress };
+  const newBalance = { $set: { "reward": booReward } };
+  await collect.updateOne(pairQuery, newBalance);
 
   // Find Value of BOO in FTM
   const routerContractLive = new ethers.Contract(
@@ -347,14 +573,12 @@ const determineReward = async () => {
   const calcAmountOut = await routerContractLive.getAmountsOut(booTokenBalance, booFTMPath);
   const ftmOut = calcAmountOut[1];
 
-
-  const profitCalculation = ftmOut - gasCost.mul(2);
+  const profitCalculation = ftmOut - gasCost.add(gasCost.div(2));
   const actualProfit = ftmOut - gasCost;
-  const profitFTM = ethers.utils.formatEther(actualProfit);
-  
+
   if (profitCalculation > 0) { 
   logDebug("==========================================");
-  logDebug("Profit in FTM:", profitFTM);
+  logDebug("Profit in FTM:", actualProfit);
 
   const newClaim = { pair: pairAddress, block: blockNumber };
   const addClaim = await claimsDB.insertOne( newClaim );
@@ -376,27 +600,15 @@ const determineReward = async () => {
   logInfo(`Boo Claimed!`)
   logInfo(`Transaction: https://ftmscan.com/tx/${claimRect.transactionHash}`);
   }
-  return;
 };
 
   try {
     await determineReward();
   } catch(e) {}
+  return;
 };
 
 const processBlock = async (blockNumber) => {
-
-  await hreProvider.request({
-    method: "hardhat_reset",
-    params: [
-      {
-        forking: {
-          jsonRpcUrl: process.env.RPC_URL,
-          blockNumer: blockNumber,
-        },
-      },
-    ],
-  });
 
   const documentCount = await collect.countDocuments();
 
@@ -415,15 +627,54 @@ const processBlock = async (blockNumber) => {
     const updatedBalance = brewBalance.toString();
 
   if (currentBalance !== updatedBalance){
+
+    await hreProvider.request({
+      method: "hardhat_reset",
+      params: [
+        {
+          forking: {
+            jsonRpcUrl: process.env.RPC_URL,
+            blockNumer: blockNumber,
+          },
+        },
+      ],
+    });
+
     const pairQuery = { _id: i };
     const newBalance = { $set: { "balance": updatedBalance } };
     const updateBalance = await collect.updateOne(pairQuery, newBalance);
+
     try { 
       await rewardClaim1(pairAddress, blockNumber);
     } catch(e) {
       logFatal(`Block = ${blockNumber} error ${JSON.stringify(e)}`);
     }
-  }}
+
+    try { 
+      await rewardClaim2(blockNumber);
+    } catch(e) {
+      logFatal(`Block = ${blockNumber} error ${JSON.stringify(e)}`);
+    } 
+
+    await hreProvider.request({
+      method: "hardhat_reset",
+      params: [
+        {
+          forking: {
+            jsonRpcUrl: process.env.RPC_URL,
+            blockNumer: blockNumber,
+          },
+        },
+      ],
+    });
+
+    try { 
+      await rewardClaim3(blockNumber);
+    } catch(e) {
+      logFatal(`Block = ${blockNumber} error ${JSON.stringify(e)}`);
+    } 
+  }
+}
 
   // Pull Transactions from Latest Block
   const blockData = await wssProvider.getBlockWithTransactions(blockNumber);
