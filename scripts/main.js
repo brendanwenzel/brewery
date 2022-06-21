@@ -287,10 +287,12 @@ logSuccess(`New Pair Added: ${pairAddress}`);
 
 const rewardClaim1 = async (pairAddress, blockNumber) => {
 
+  // Filter Previous Claims Within a 60 Block Window
   const blockSpace = blockNumber - 60;
   const queryAddress = await claimsDB.findOne({pair: pairAddress, block: {$gt: blockSpace}});
   if (queryAddress) { return; }
 
+  // Choose a random Hardhat wallet
   function getRandomInt(max) {
     return Math.floor(Math.random() * max);
   }
@@ -317,16 +319,7 @@ const rewardClaim1 = async (pairAddress, blockNumber) => {
     forkedKey
 );
 
-// const LPContract = new ethers.Contract(
-//   pairAddress,
-//   [
-//       'function balanceOf(address account) public view returns (uint256)',
-//   ],
-//   searcherWallet
-// );
-
-// const lpBalance = await LPContract.balanceOf(CONTRACTS.BOOBREWCONTRACT);
-
+// Gas Price Setup
 const estGasPrice = await wssProvider.getGasPrice();
 const gasPrice = ethers.utils.hexlify(estGasPrice);
 const gasLimit = ethers.utils.hexlify(2000000);
@@ -337,7 +330,7 @@ const determineReward = async () => {
   const targetToken1 = targetPair.token1;
   const calcTargetRewards = await booBrewContract.convertMultiple([targetToken0], [targetToken1], [], {gasPrice: gasPrice, gasLimit: gasLimit});
   const callTargetResult = await calcTargetRewards.wait();
-  const gasUsed = callTargetResult.gasUsed;
+  const gasUsed = callTargetResult.gasUsed; // Close Est. of Gas Used
   const booTokenBalance = await tokenContract.balanceOf(forkedWallet.address);
   const gasCost = ethers.BigNumber.from(estGasPrice.mul(gasUsed));
 
@@ -352,10 +345,12 @@ const determineReward = async () => {
   const calcAmountOut = await routerContractLive.getAmountsOut(booTokenBalance, booFTMPath);
   const ftmOut = calcAmountOut[1];
 
-  const profitCalculation = ftmOut - gasCost.mul(2);  
+  const profitCalculation = ftmOut - gasCost.mul(2);
+  const profitFTM = ethers.utils.formatEther(profitCalculation);
+  
   if (profitCalculation > 0) { 
   logDebug("==========================================");
-  logDebug("Possible Profit:", profitCalculation);
+  logDebug("Profit in FTM:", profitFTM);
 
   const newClaim = { pair: pairAddress, block: blockNumber };
   const addClaim = await claimsDB.insertOne( newClaim );

@@ -53,7 +53,7 @@ Once you have everything setup, it's time to run the script with the following c
 
 ```shell
 cd scripts
-npx hardhat run fullbuild.js --network localhost
+npx hardhat run main.js --network localhost
 ```
 
 ### rewardsupdate.js
