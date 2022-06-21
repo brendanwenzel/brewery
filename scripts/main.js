@@ -8,6 +8,7 @@ const { MongoClient, CURSOR_FLAGS } = require('mongodb');
 const wssProvider = new ethers.providers.WebSocketProvider(process.env.RPC_URL_WSS);
 const provider = new ethers.providers.JsonRpcProvider(process.env.RPC_URL);
 const rpcProvider = new ethers.providers.JsonRpcProvider("http://127.0.0.1:8545");
+const hreProvider = hre.network.provider;
 const searcherWallet = new ethers.Wallet( process.env.PRIVATE_KEY_LIVE, wssProvider );
 const signerKey = searcherWallet.connect(provider);
 
@@ -32,10 +33,10 @@ try {
   console.error(e);
 }
 
-const IBooBrew = require("/home/liquidity/src/abi/IBooBrew.json");
-const IPancakeswapV2RouterABI = require("/home/liquidity/src/abi/IPancakswapV2Router02.json");
+// ABIs 
+const IBooBrew = require("./abi/IBooBrew.json");
+const IPancakeswapV2RouterABI = require("./abi/IPancakswapV2Router02.json");
 const ILiquidity = require("./abi/ILiquidityPair.json");
-const hreProvider = hre.network.provider;
 
 const TOKENS = {
   WFTM: "0x21be370D5312f44cB42ce377BC9b8a0cEF1A4C83",
@@ -236,6 +237,7 @@ const clearRewards = async (tx) => {
       if (findID) { return; }
       const addPairData = { _id: idNumber, pair: pairAddress, token0: token0[i], token1: token1[i], reward: 0, router: CONTRACTS.SPOOKY };
       await collect.insertOne(addPairData);
+      logSuccess(`New Pair Added: ${pairAddress}`);
     }
   }
 
@@ -345,8 +347,10 @@ const determineReward = async () => {
   const calcAmountOut = await routerContractLive.getAmountsOut(booTokenBalance, booFTMPath);
   const ftmOut = calcAmountOut[1];
 
+
   const profitCalculation = ftmOut - gasCost.mul(2);
-  const profitFTM = ethers.utils.formatEther(profitCalculation);
+  const actualProfit = ftmOut - gasCost;
+  const profitFTM = ethers.utils.formatEther(actualProfit);
   
   if (profitCalculation > 0) { 
   logDebug("==========================================");
