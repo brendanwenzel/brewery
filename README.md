@@ -55,3 +55,7 @@ Once you have everything setup, it's time to run the script with the following c
 cd scripts
 npx hardhat run fullbuild.js --network localhost
 ```
+
+### rewardsupdate.js
+
+This script was made when there was a significant time period the main script was down. This one will update all the reward numbers and claim anything profitable in the meantime.

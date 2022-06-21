@@ -27,7 +27,10 @@ module.exports = {
     hardhat: {
       forking: {
         url: process.env.RPC_URL || "",
-      }
+      },
+    accounts: {
+        count: 50,
+    }
     },
   }
 };

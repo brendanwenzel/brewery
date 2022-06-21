@@ -5,7 +5,10 @@ const chalk = require("chalk");
 const abiDecoder = require('abi-decoder');
 
 const wssProvider = new ethers.providers.WebSocketProvider(process.env.RPC_URL_WSS);
+const provider = new ethers.providers.JsonRpcProvider(process.env.RPC_URL);
 const rpcProvider = new ethers.providers.JsonRpcProvider("http://127.0.0.1:8545");
+const searcherWallet = new ethers.Wallet( process.env.PRIVATE_KEY_LIVE, provider );
+const signerKey = searcherWallet.connect(provider);
 
 const { MongoClient, CURSOR_FLAGS } = require('mongodb');
 
@@ -29,8 +32,8 @@ try {
   console.error(e);
 }
 
-const IBooBrew = require("/home/liquidity/src/abi/IBooBrew.json");
-const IPancakeswapV2RouterABI = require("/home/liquidity/src/abi/IPancakswapV2Router02.json");
+const IBooBrew = require("./abi/IBooBrew.json");
+const IPancakeswapV2RouterABI = require("./abi/IPancakswapV2Router02.json");
 const ILiquidity = require("./abi/ILiquidityPair.json");
 const hreProvider = hre.network.provider;
 
@@ -68,104 +71,105 @@ const PRIVATEKEY = [
   "0xdf57089febbacf7ba0bc227dafbffa9fc08a93fdc68e1e42411a14efcf23656e"
 ]
 
-const match = (a, b, caseIncensitive = true) => {
-  if (a === null || a === undefined) return false;
+// const match = (a, b, caseIncensitive = true) => {
+//   if (a === null || a === undefined) return false;
 
-  if (Array.isArray(b)) {
-    if (caseIncensitive) {
-      return b.map((x) => x.toLowerCase()).includes(a.toLowerCase());
-    }
+//   if (Array.isArray(b)) {
+//     if (caseIncensitive) {
+//       return b.map((x) => x.toLowerCase()).includes(a.toLowerCase());
+//     }
 
-    return b.includes(a);
-  }
+//     return b.includes(a);
+//   }
 
-  if (caseIncensitive) {
-    return a.toLowerCase() === b.toLowerCase();
-  }
+//   if (caseIncensitive) {
+//     return a.toLowerCase() === b.toLowerCase();
+//   }
 
-  return a === b;
-};
+//   return a === b;
+// };
 
-const parseUniv2RouterTx = (txData) => {
-  let data = null;
-  try {
-    data = abiDecoder.decodeMethod(txData);
-  } catch (e) {
-    return null;
-  }
+// const parseUniv2RouterTx = (txData) => {
+//   let data = null;
+//   try {
+//     data = abiDecoder.decodeMethod(txData);
+//   } catch (e) {
+//     return null;
+//   }
 
-  if (data.name === "swapExactETHForTokens") {
-    const [amountOutMin, path, to, deadline] = data.params.map((x) => x.value);
-    const nullValue = "null";
-    return {
-      amountIn: nullValue,
-      amountOutMin,
-      path,
-      to,
-      deadline
-    };
-  }
+//   if (data.name === "swapExactETHForTokens") {
+//     const [amountOutMin, path, to, deadline] = data.params.map((x) => x.value);
+//     const nullValue = "null";
+//     return {
+//       amountIn: nullValue,
+//       amountOutMin,
+//       path,
+//       to,
+//       deadline
+//     };
+//   }
 
-  if (data.name === "swapETHForExactTokens") {
-    const [amountOut, path, to, deadline] = data.params.map((x) => x.value);
-    const nullValue = "null";
-    return {
-      amountIn: nullValue,
-      amountOutMin: amountOut,
-      path,
-      to,
-      deadline
-    };
-  }
+//   if (data.name === "swapETHForExactTokens") {
+//     const [amountOut, path, to, deadline] = data.params.map((x) => x.value);
+//     const nullValue = "null";
+//     return {
+//       amountIn: nullValue,
+//       amountOutMin: amountOut,
+//       path,
+//       to,
+//       deadline
+//     };
+//   }
 
-  if (data.name === "swapTokensForExactTokens" || data.name === "swapTokensForExactETH")  { 
-    const [amountOut, amountInMax, path, to, deadline] = data.params.map((x) => x.value); 
-    return {
-      amountIn: amountInMax,
-      amountOutMin: amountOut,
-      path,
-      to,
-      deadline
-    };
-  }
+//   if (data.name === "swapTokensForExactTokens" || data.name === "swapTokensForExactETH")  { 
+//     const [amountOut, amountInMax, path, to, deadline] = data.params.map((x) => x.value); 
+//     return {
+//       amountIn: amountInMax,
+//       amountOutMin: amountOut,
+//       path,
+//       to,
+//       deadline
+//     };
+//   }
 
-  if (data.name !== "swapExactTokensForETH" && data.name !== "swapExactTokensForTokens" && data.name !== "swapExactTokensForETHSupportingFeeOnTransferTokens" && data.name !== "swapExactTokensForTokensSupportingFeeOnTransferTokens") { return null; }
+//   if (data.name !== "swapExactTokensForETH" && data.name !== "swapExactTokensForTokens" && data.name !== "swapExactTokensForETHSupportingFeeOnTransferTokens" && data.name !== "swapExactTokensForTokensSupportingFeeOnTransferTokens") { return null; }
 
-  const [amountIn, amountOutMin, path, to, deadline] = data.params.map((x) => x.value);
+//   const [amountIn, amountOutMin, path, to, deadline] = data.params.map((x) => x.value);
 
-  return {
-    amountIn,
-    amountOutMin,
-    path,
-    to,
-    deadline
-  };
-};
+//   return {
+//     amountIn,
+//     amountOutMin,
+//     path,
+//     to,
+//     deadline
+//   };
+// };
 
-const sortTokens = (tokenA, tokenB) => {
-  if (ethers.BigNumber.from(tokenA).lt(ethers.BigNumber.from(tokenB))) {
-    return [tokenA, tokenB];
-  }
-  return [tokenB, tokenA];
-};
+// const sortTokens = (tokenA, tokenB) => {
+//   if (ethers.BigNumber.from(tokenA).lt(ethers.BigNumber.from(tokenB))) {
+//     return [tokenA, tokenB];
+//   }
+//   return [tokenB, tokenA];
+// };
 
-const getUniv2PairAddress = (tokenA, tokenB) => {
-  const [token0, token1] = sortTokens(tokenA, tokenB);
+// const getUniv2PairAddress = (tokenA, tokenB) => {
+//   const [token0, token1] = sortTokens(tokenA, tokenB);
 
-  const salt = ethers.utils.keccak256(token0 + token1.replace("0x", ""));
-  const address = ethers.utils.getCreate2Address(
-    "0x152eE697f2E276fA89E96742e9bB9aB1F2E61bE3", // Factory address (contract creator)
-    salt,
-    "0xcdf2deca40a0bd56de8e3ce5c7df6727e5b1bf2ac96f283fa9c4b3e6b42ea9d2" // init code hash
-  );
+//   const salt = ethers.utils.keccak256(token0 + token1.replace("0x", ""));
+//   const address = ethers.utils.getCreate2Address(
+//     "0x152eE697f2E276fA89E96742e9bB9aB1F2E61bE3", // Factory address (contract creator)
+//     salt,
+//     "0xcdf2deca40a0bd56de8e3ce5c7df6727e5b1bf2ac96f283fa9c4b3e6b42ea9d2" // init code hash
+//   );
 
-  return address;
-};
+//   return address;
+// };
 
 
 const main = async () => {
 
-  const estGasPrice = await wssProvider.getGasPrice();  
+  const estGasPrice = await wssProvider.getGasPrice();
+  const gasPriceDesired = estGasPrice.add(estGasPrice.div(5));
   const forkedWallet = new ethers.Wallet(
     PRIVATEKEY[17],
     rpcProvider
@@ -190,7 +194,6 @@ const main = async () => {
 // Target Pair (TP) for Reward Calculation
 const gasPrice = ethers.utils.hexlify(estGasPrice);
 const gasLimit = ethers.utils.hexlify(2000000);
-const gasCost = ethers.BigNumber.from(estGasPrice.mul(1500000));
 const documentCount = await collect.countDocuments();
 
   for (var i = 1; i < documentCount; i++) {
@@ -214,12 +217,48 @@ const documentCount = await collect.countDocuments();
       const targetToken1 = targetPair.token1;
       const calcTargetRewards = await booBrewContract.convertMultiple([targetToken0], [targetToken1], [], {gasPrice: gasPrice, gasLimit: gasLimit});
       const callTargetResult = await calcTargetRewards.wait();
+      const gasUsed = callTargetResult.gasUsed;
       const booTokenBalance = await tokenContract.balanceOf(forkedWallet.address);
       const booReward = parseInt(booTokenBalance);
-    
+      const gasCost = ethers.BigNumber.from(estGasPrice.mul(gasUsed));
+
+      // Find Value of BOO in FTM
+      const routerContractLive = new ethers.Contract(
+        CONTRACTS.SPOOKY,
+        IPancakeswapV2RouterABI,
+        searcherWallet
+      );
+
+      const booFTMPath = [TOKENS.BOO, TOKENS.WFTM];
+      const calcAmountOut = await routerContractLive.getAmountsOut(booTokenBalance, booFTMPath);
+      const ftmOut = calcAmountOut[1];
+
+      const profitCalculation = ftmOut - gasCost.mul(2);  
+      if (profitCalculation > 0) { 
+      logDebug("==========================================");
+      logDebug("Possible Profit:", profitCalculation);
+
+      const booBrewContractLive = new ethers.Contract(
+        CONTRACTS.BOOBREWCONTRACT,
+        IBooBrew,
+        searcherWallet
+      );
+
+      const transactionCount = await wssProvider.getTransactionCount(searcherWallet.address);
+
+      logTrace("Submitting Claim...");
+      const claimBooReward = await booBrewContractLive.convertMultiple([targetToken0], [targetToken1], [], {gasPrice: gasPrice, gasLimit: gasLimit});
+      logTrace("Claim Submitted");
+      const claimRect = await claimBooReward.wait();
+      logInfo(`Boo Claimed!`)
+      logInfo(`Transaction: ${claimRect.transactionHash}`);
+      return;
+      }
+
       const queryDocument = { pair: targetAddress };
       const newPairData = { $set: { reward: booReward } };
       const result = await collect.updateOne(queryDocument, newPairData);
+
       const booTokenRewardFormat = ethers.utils.formatUnits(booTokenBalance);
       logTrace(`Updated ${targetAddress} with reward ${booTokenRewardFormat}`);
       return booTokenRewardFormat;
