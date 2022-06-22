@@ -78,4 +78,7 @@ There are multiple ways to support my work and help me do more of this.
 
 One is to make a donation on BNB, ETH or MATIC to 0x13e71e5507cF7292CF8202Cbde034Cd71ACbA63b
 
-You can also hire me to customize a script for your needs. You can send me Telegram message to @brendanwenzel.
+You can also hire me to customize a script for your needs. 
+
+Telegram: @brendanwenzel
+Twitter: @brendanwenzel
