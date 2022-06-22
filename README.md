@@ -70,7 +70,22 @@ npx hardhat run main.js --network localhost
 
 ### rewardsupdate.js
 
-This script was made when there was a significant time period the main script was down. This one will update all the reward numbers and claim anything profitable in the meantime.
+This script was made when there was a significant time period the main script was down. 
+
+It will update all the reward numbers and claim anything profitable in the meantime.
+
+```shell
+cd scripts
+npx hardhat run rewardsupdate.js --network localhost
+```
+In order to run this update script, you need to have a database of pairs already established.
+
+### Optimization Ideas
+
+- [ ] More Advanced Logging System: Using something like Graphana to see which pairs are the most profitable and which ones are giving the most issues.
+- [ ] Remove Issue Pairs: Sometimes there are pairs that won't process. Would like to build a simple system that resets these pairs rewards data if they get an error in the Hardhat node.
+- [ ] Auto-Restart Script: Hardhat will occassionally get an error that causes the main script to stop. Need to setup a system to automatically restart the script when it shuts down due to an error.
+- [ ] Cancel Claims: When someone else makes a claim on an LP before processing our claim, cancel the claim with a self transfer with higher gas to try to save on gas costs, as much as possible.
 
 #### Support My Work
 
