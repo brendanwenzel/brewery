@@ -1,8 +1,20 @@
 # BooBrew $BOO Bounty Claim
 
-This script was made to call the "ConvertMultiple" function on the BooBrewV3 contract that liquidates liquidity pools collected from swap fees on SpookySwap.
+SpookySwap collects protocol fees in the form of liquidity tokens and collects them in a contract they call "BooBrew".
+
+This script was made to call the "ConvertMultiple" function on the BooBrewV3 contract. 
+
+This function will liquidate the liquidity tokens in the BooBrew contract and then convert it all to the native SpookySwap token, $BOO.
+
+In exchange for calling this funtion, the caller will receive 0.1% of the BOO collected. The rest will be converted to xBOO to buyback BOO tokens and reward stakers.
 
 BooBrewV3 Contract: https://ftmscan.com/address/0x3b3fdc40582a957206aed119842f2313de9ee21b
+
+This script will watch the SpookySwap router for new pairs being swapped to add to the database.
+
+It will then watch each new block for changes in the LP tokens held by BooBrew.
+
+If a change happens, the pair is run through a local Hardhat node to see if the rewards meet the profit thresholds in terms of FTM to run the convertMultiple function inside the BooBrew contract.
 
 ## Tools Used to Create This System:
 - Node.js
