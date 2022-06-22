@@ -71,3 +71,11 @@ npx hardhat run main.js --network localhost
 ### rewardsupdate.js
 
 This script was made when there was a significant time period the main script was down. This one will update all the reward numbers and claim anything profitable in the meantime.
+
+#### Support My Work
+
+There are multiple ways to support my work and help me do more of this.
+
+One is to make a donation on BNB, ETH or MATIC to 0x13e71e5507cF7292CF8202Cbde034Cd71ACbA63b
+
+You can also hire me to customize a script for your needs. You can send me Telegram message to @brendanwenzel.
