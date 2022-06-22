@@ -23,8 +23,8 @@ const logFatal = (...args) => { console.log(chalk.redBright(...args)); };
 // Initialize MongoDB and Collection
 const uri = "mongodb://localhost:27017/";
 const client = new MongoClient(uri);
-const db = client.db("liquidity");
-const collect = db.collection("spooky");
+const db = client.db("boobrew");
+const collect = db.collection("lptokens");
 const claimsDB = db.collection("claims");
 try {
   client.connect();
