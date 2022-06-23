@@ -1,3 +1,5 @@
+![](https://github.com/brendanwenzel/brewery/blob/b90c36921c167dd52ec19cb7e57042edf13972f4/spookyswapboobrew.png)
+
 # SpookySwap BooBrew $BOO Bounty Claim
 
 SpookySwap collects protocol fees in the form of liquidity tokens and collects them in a contract they call "BooBrew".
